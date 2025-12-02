@@ -1,0 +1,120 @@
+{% extends "base.html" %}
+
+{% block title %}Inventory - Inventory System{% endblock %}
+
+{% block content %}
+<div class="container">
+    <h1 class="mb-4"><i class="bi bi-clipboard-data"></i> Inventory Management</h1>
+    
+    <div class="card">
+        <div class="card-body">
+            <table class="table table-hover">
+                <thead class="table-dark">
+                    <tr>
+                        <th>ID</th>
+                        <th>Product Name</th>
+                        <th>Category</th>
+                        <th>Stock Quantity</th>
+                        <th>Restock Date</th>
+                        <th>Status</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for inventory, product in inventory_items %}
+                    <tr class="{% if inventory.stock_quantity < 10 %}table-danger{% elif inventory.stock_quantity < 20 %}table-warning{% endif %}">
+                        <td>{{ inventory.inventory_id }}</td>
+                        <td>{{ product.product_name }}</td>
+                        <td><span class="badge bg-secondary">{{ product.category }}</span></td>
+                        <td><strong>{{ inventory.stock_quantity }}</strong></td>
+                        <td>{{ inventory.restock_date.strftime('%Y-%m-%d') if inventory.restock_date else 'N/A' }}</td>
+                        <td>
+                            {% if inventory.stock_quantity < 10 %}
+                                <span class="badge bg-danger">Critical</span>
+                            {% elif inventory.stock_quantity < 20 %}
+                                <span class="badge bg-warning">Low</span>
+                            {% else %}
+                                <span class="badge bg-success">Healthy</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <button class="btn btn-sm btn-primary" onclick="editInventory({{ inventory.inventory_id }}, '{{ product.product_name }}', {{ inventory.stock_quantity }}, '{{ inventory.restock_date.strftime('%Y-%m-%d') if inventory.restock_date else '' }}')">
+                                <i class="bi bi-pencil"></i> Update
+                            </button>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Update Inventory Modal -->
+<div class="modal fade" id="inventoryModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Update Inventory</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="inventoryForm">
+                    <input type="hidden" id="inventoryId">
+                    <div class="mb-3">
+                        <label class="form-label">Product Name</label>
+                        <input type="text" class="form-control" id="productNameDisplay" readonly>
+                    </div>
+                    <div class="mb-3">
+                        <label for="stockQuantity" class="form-label">Stock Quantity</label>
+                        <input type="number" class="form-control" id="stockQuantity" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="restockDate" class="form-label">Restock Date</label>
+                        <input type="date" class="form-control" id="restockDate">
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" onclick="saveInventory()">Save</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function editInventory(inventoryId, productName, stockQuantity, restockDate) {
+    document.getElementById('inventoryId').value = inventoryId;
+    document.getElementById('productNameDisplay').value = productName;
+    document.getElementById('stockQuantity').value = stockQuantity;
+    document.getElementById('restockDate').value = restockDate;
+    new bootstrap.Modal(document.getElementById('inventoryModal')).show();
+}
+
+function saveInventory() {
+    const inventoryId = document.getElementById('inventoryId').value;
+    const data = {
+        stock_quantity: parseInt(document.getElementById('stockQuantity').value),
+        restock_date: document.getElementById('restockDate').value
+    };
+    
+    fetch(`/api/inventory/${inventoryId}`, {
+        method: 'PUT',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(data)
+    })
+    .then(response => response.json())
+    .then(result => {
+        if (result.success) {
+            alert('Inventory updated successfully!');
+            location.reload();
+        } else {
+            alert('Error: ' + result.error);
+        }
+    });
+}
+</script>
+{% endblock %}

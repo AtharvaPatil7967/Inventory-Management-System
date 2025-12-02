@@ -1,0 +1,233 @@
+{% extends "base.html" %}
+
+{% block title %}AI Insights - Inventory System{% endblock %}
+
+{% block extra_css %}
+<style>
+    .prediction-critical { border-left: 4px solid #dc3545; }
+    .prediction-warning { border-left: 4px solid #ffc107; }
+    .prediction-healthy { border-left: 4px solid #28a745; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container">
+    <h1 class="mb-4"><i class="bi bi-graph-up"></i> AI-Powered Inventory Insights</h1>
+    
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="alert alert-info">
+                <i class="bi bi-info-circle"></i> <strong>AI Prediction Model:</strong> Using Linear Regression to forecast product demand based on historical sales data. The system predicts which products may run out of stock soon.
+            </div>
+        </div>
+    </div>
+
+    <button class="btn btn-primary mb-3" onclick="loadPredictions()">
+        <i class="bi bi-lightning-charge"></i> Run AI Prediction
+    </button>
+    
+    <!-- Prediction Results -->
+    <div id="predictionResults" class="mb-5" style="display: none;">
+        <div class="card">
+            <div class="card-header bg-primary text-white">
+                <h5 class="mb-0"><i class="bi bi-cpu"></i> Stock Prediction Results</h5>
+                <small id="predictionTimestamp"></small>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead class="table-dark">
+                            <tr>
+                                <th>Product</th>
+                                <th>Category</th>
+                                <th>Current Stock</th>
+                                <th>Predicted Daily Sales</th>
+                                <th>Days Until Stockout</th>
+                                <th>Confidence</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody id="predictionsTableBody"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Charts Section -->
+    <div class="row">
+        <div class="col-md-8">
+            <div class="card mb-4">
+                <div class="card-header bg-success text-white">
+                    <h5 class="mb-0"><i class="bi bi-graph-up-arrow"></i> Sales Trend (Last 30 Days)</h5>
+                </div>
+                <div class="card-body">
+                    <canvas id="salesTrendChart" height="80"></canvas>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-4">
+            <div class="card mb-4">
+                <div class="card-header bg-info text-white">
+                    <h5 class="mb-0"><i class="bi bi-pie-chart"></i> Sales by Category</h5>
+                </div>
+                <div class="card-body">
+                    <canvas id="categorySalesChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script>
+let salesTrendChart = null;
+let categorySalesChart = null;
+
+// Load AI Predictions
+function loadPredictions() {
+    fetch('/api/predict')
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                displayPredictions(data.predictions, data.timestamp);
+            } else {
+                alert('Error loading predictions: ' + data.error);
+            }
+        })
+        .catch(error => alert('Error: ' + error));
+}
+
+function displayPredictions(predictions, timestamp) {
+    document.getElementById('predictionResults').style.display = 'block';
+    document.getElementById('predictionTimestamp').textContent = 'Last updated: ' + timestamp;
+    
+    const tbody = document.getElementById('predictionsTableBody');
+    tbody.innerHTML = '';
+    
+    predictions.forEach(pred => {
+        const row = document.createElement('tr');
+        
+        // Determine row class based on status
+        if (pred.status.includes('Critical')) {
+            row.className = 'table-danger';
+        } else if (pred.status.includes('Warning') || pred.status.includes('Low')) {
+            row.className = 'table-warning';
+        }
+        
+        row.innerHTML = `
+            <td><strong>${pred.product_name}</strong></td>
+            <td><span class="badge bg-secondary">${pred.category}</span></td>
+            <td>${pred.current_stock}</td>
+            <td>${pred.predicted_sales}</td>
+            <td>${pred.days_until_stockout}</td>
+            <td><span class="badge bg-${pred.confidence === 'High' ? 'success' : pred.confidence === 'Medium' ? 'warning' : 'secondary'}">${pred.confidence}</span></td>
+            <td>${pred.status}</td>
+        `;
+        
+        tbody.appendChild(row);
+    });
+}
+
+// Load Sales Trend Chart
+function loadSalesTrendChart() {
+    fetch('/api/sales-trend')
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                const ctx = document.getElementById('salesTrendChart').getContext('2d');
+                
+                if (salesTrendChart) {
+                    salesTrendChart.destroy();
+                }
+                
+                salesTrendChart = new Chart(ctx, {
+                    type: 'line',
+                    data: {
+                        labels: data.dates,
+                        datasets: [{
+                            label: 'Units Sold',
+                            data: data.quantities,
+                            borderColor: 'rgb(75, 192, 192)',
+                            backgroundColor: 'rgba(75, 192, 192, 0.2)',
+                            tension: 0.3,
+                            fill: true
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: true,
+                        plugins: {
+                            legend: {
+                                display: true,
+                                position: 'top'
+                            },
+                            title: {
+                                display: false
+                            }
+                        },
+                        scales: {
+                            y: {
+                                beginAtZero: true
+                            }
+                        }
+                    }
+                });
+            }
+        });
+}
+
+// Load Category Sales Chart
+function loadCategorySalesChart() {
+    fetch('/api/category-sales')
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                const ctx = document.getElementById('categorySalesChart').getContext('2d');
+                
+                if (categorySalesChart) {
+                    categorySalesChart.destroy();
+                }
+                
+                const colors = [
+                    'rgba(255, 99, 132, 0.8)',
+                    'rgba(54, 162, 235, 0.8)',
+                    'rgba(255, 206, 86, 0.8)',
+                    'rgba(75, 192, 192, 0.8)',
+                    'rgba(153, 102, 255, 0.8)'
+                ];
+                
+                categorySalesChart = new Chart(ctx, {
+                    type: 'doughnut',
+                    data: {
+                        labels: data.categories,
+                        datasets: [{
+                            data: data.sales,
+                            backgroundColor: colors,
+                            borderWidth: 2
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: true,
+                        plugins: {
+                            legend: {
+                                position: 'bottom'
+                            }
+                        }
+                    }
+                });
+            }
+        });
+}
+
+// Load charts on page load
+document.addEventListener('DOMContentLoaded', function() {
+    loadSalesTrendChart();
+    loadCategorySalesChart();
+});
+</script>
+{% endblock %}
